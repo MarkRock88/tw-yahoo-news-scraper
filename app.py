@@ -15,7 +15,7 @@ TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 
 def fetch_full_cs2_table():
-    url = 'https://prosettings.net/lists/fortnite/'
+    url = 'https://prosettings.net/lists/cs2/'
     headers = {'User-Agent': 'Mozilla/5.0'}
     r = requests.get(url, headers=headers)
 
