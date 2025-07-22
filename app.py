@@ -4,7 +4,6 @@ import csv
 import requests
 from bs4 import BeautifulSoup
 from base64 import b64encode
-from datetime import datetime  
 
 # 讀取環境變數
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
@@ -13,10 +12,6 @@ GITHUB_REPO = os.environ['GITHUB_REPO']  # 格式: username/repo
 GITHUB_FILE_PATH = 'cs2_pro_settings.csv'  # repo 裡的路徑與檔名
 TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-
-# 新增一個函式來獲取今天的日期
-def get_today_date():
-    return datetime.now().strftime('%Y-%m-%d')  # 格式為 "YYYY-MM-DD"
 
 def fetch_full_cs2_table():
     url = 'https://prosettings.net/lists/cs2/'
@@ -83,7 +78,7 @@ def upload_file_to_github(file_path):
     file_sha = get_file_sha()  # 查詢 GitHub Repo 中檔案的 SHA 值
     file_content = encode_file_to_base64(file_path)
     
-    commit_message = f"Update cs2_pro_settings.csv - {get_today_date()}"
+    commit_message = "Update cs2_pro_settings.csv"
     
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     
