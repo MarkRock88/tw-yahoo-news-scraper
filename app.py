@@ -2,15 +2,15 @@ import os
 import json
 import csv
 import requests
+import subprocess
 from bs4 import BeautifulSoup
-from google.oauth2.service_account import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
 
-# 使用環境變數設定
+# 讀取環境變數
 TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
-GOOGLE_DRIVE_FOLDER_ID = os.environ['GOOGLE_DRIVE_FOLDER_ID']  # Google Drive 目標資料夾 ID
+GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
+GITHUB_USERNAME = os.environ['GITHUB_USERNAME']
+GITHUB_REPO = os.environ['GITHUB_REPO']  # 格式 username/repo，例如 yourname/yourrepo
 
 def fetch_full_cs2_table():
     url = 'https://prosettings.net/lists/cs2/'
@@ -42,7 +42,6 @@ def fetch_full_cs2_table():
             print("⚠️ 欄位數不一致，跳過一筆")
     return headers, data
 
-
 def format_table_to_text(headers, data, limit=20):
     filtered_data = [
         row for row in data
@@ -56,7 +55,6 @@ def format_table_to_text(headers, data, limit=20):
         msg += f"   Monitor: {row.get('Monitor', '')}, Mousepad: {row.get('Mousepad', '')}\n"
         msg += "—" * 30 + "\n"
     return msg
-
 
 def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -74,7 +72,6 @@ def send_telegram_message(message):
     except Exception as e:
         print("❌ 發送錯誤：", e)
 
-
 def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
     try:
         with open(filename, 'w', encoding='utf-8', newline='') as f:
@@ -85,34 +82,27 @@ def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
     except Exception as e:
         print(f"❌ 存檔失敗：{e}")
 
+def setup_git():
+    subprocess.run(['git', 'config', '--global', 'user.email', 'your_email@example.com'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.name', GITHUB_USERNAME], check=True)
 
-def upload_to_google_drive(local_file, folder_id):
+def git_commit_and_push(file_path, commit_message="自動更新 csv 備份"):
     try:
-        credentials_info = json.loads(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
-        credentials = Credentials.from_service_account_info(credentials_info)
-        drive_service = build('drive', 'v3', credentials=credentials)
+        setup_git()
+        subprocess.run(['git', 'add', file_path], check=True)
+        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
 
-        file_metadata = {
-            'name': os.path.basename(local_file),
-            'parents': [folder_id]  # 這是你共用資料夾的 ID
-        }
+        remote_url = f"https://{GITHUB_TOKEN}@github.com/{GITHUB_REPO}.git"
 
-        media = MediaFileUpload(local_file, mimetype='application/vnd.ms-excel')
+        # 移除 origin，如果不存在不會報錯
+        subprocess.run(['git', 'remote', 'remove', 'origin'], check=False)
+        subprocess.run(['git', 'remote', 'add', 'origin', remote_url], check=True)
 
-        # ⚠️ 關鍵修改：加入 supportsAllDrives=True
-        file = drive_service.files().create(
-            body=file_metadata,
-            media_body=media,
-            fields='id',
-            supportsAllDrives=True  # ⬅️ 加這行，支援共用資料夾
-        ).execute()
+        subprocess.run(['git', 'push', '-u', 'origin', 'main'], check=True)  # 如果是 master 分支，把 main 換成 master
 
-        print(f"✅ 已上傳 {local_file} 至 Google Drive，文件 ID：{file.get('id')}")
-
-    except Exception as e:
-        print(f"❌ 上傳到 Google Drive 失敗：{e}")
-
-
+        print("✅ 成功 commit 並推送到 GitHub")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Git 操作失敗：{e}")
 
 if __name__ == "__main__":
     result = fetch_full_cs2_table()
@@ -122,14 +112,11 @@ if __name__ == "__main__":
     else:
         headers, data = result
 
-        # 傳送前 ZOWIE 的前 20 筆資料到 Telegram
         msg = format_table_to_text(headers, data, limit=20)
         print(msg)
         send_telegram_message(msg)
 
-        # 存成 CSV 檔
         filename = "cs2_pro_settings.csv"
         save_to_csv(headers, data, filename)
 
-        # 上傳 CSV 至 Google Drive
-        upload_to_google_drive(filename, GOOGLE_DRIVE_FOLDER_ID)
+        git_commit_and_push(filename)
