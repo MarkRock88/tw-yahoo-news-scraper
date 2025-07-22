@@ -88,20 +88,30 @@ def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
 
 def upload_to_google_drive(local_file, folder_id):
     try:
-        credentials_info = json.loads(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])  # 從環境變數讀取憑證
+        credentials_info = json.loads(os.environ["GOOGLE_APPLICATION_CREDENTIALS"])
         credentials = Credentials.from_service_account_info(credentials_info)
         drive_service = build('drive', 'v3', credentials=credentials)
 
         file_metadata = {
             'name': os.path.basename(local_file),
-            'parents': [folder_id]  # 指定文件上傳的 Google Drive 資料夾
+            'parents': [folder_id]  # 這是你共用資料夾的 ID
         }
+
         media = MediaFileUpload(local_file, mimetype='application/vnd.ms-excel')
-        
-        file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
-        print(f"✅ 已上傳 {local_file} 至 Google Drive 資料夾，文件 ID：{file.get('id')}")
+
+        # ⚠️ 關鍵修改：加入 supportsAllDrives=True
+        file = drive_service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id',
+            supportsAllDrives=True  # ⬅️ 加這行，支援共用資料夾
+        ).execute()
+
+        print(f"✅ 已上傳 {local_file} 至 Google Drive，文件 ID：{file.get('id')}")
+
     except Exception as e:
         print(f"❌ 上傳到 Google Drive 失敗：{e}")
+
 
 
 if __name__ == "__main__":
