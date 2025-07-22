@@ -4,14 +4,18 @@ import csv
 import requests
 from bs4 import BeautifulSoup
 from base64 import b64encode
+from datetime import datetime  # 引入 datetime 模組
 
 # 讀取環境變數
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 GITHUB_USERNAME = os.environ['GITHUB_USERNAME']
 GITHUB_REPO = os.environ['GITHUB_REPO']  # 格式: username/repo
-GITHUB_FILE_PATH = 'cs2_pro_settings.csv'  # repo 裡的路徑與檔名
 TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+
+# 新增一個函式來獲取今天的日期
+def get_today_date():
+    return datetime.now().strftime('%Y-%m-%d')  # 格式為 "YYYY-MM-DD"
 
 def fetch_full_cs2_table():
     url = 'https://prosettings.net/lists/cs2/'
@@ -78,7 +82,7 @@ def upload_file_to_github(file_path):
     file_sha = get_file_sha()  # 查詢 GitHub Repo 中檔案的 SHA 值
     file_content = encode_file_to_base64(file_path)
     
-    commit_message = "Update cs2_pro_settings.csv"
+    commit_message = f"Update cs2_pro_settings.csv - {get_today_date()}"
     
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     
@@ -109,8 +113,6 @@ def upload_file_to_github(file_path):
     else:
         print(f"❌ 上傳失敗，狀態碼：{response.status_code}")
         print(response.json())
-
-
 
 # A代碼部分
 def format_table_to_text(headers, data, limit=20):
@@ -150,16 +152,17 @@ if __name__ == "__main__":
         print(result)
     else:
         headers, data = result
+        # 把今天的日期加到檔案名稱中
+        today_date = get_today_date()
+        filename = f"cs2_pro_settings_{today_date}.csv"
+        
         # 存成 CSV 檔
-        save_to_csv(headers, data)
+        save_to_csv(headers, data, filename)
 
         # 上傳至 GitHub Repo
-        upload_file_to_github("cs2_pro_settings.csv")
+        upload_file_to_github(filename)
 
         # 傳送前 ZOWIE 的前 20 筆資料到 Telegram
         msg = format_table_to_text(headers, data, limit=20)
         print(msg)
         send_telegram_message(msg)
-
-
-
