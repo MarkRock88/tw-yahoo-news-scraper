@@ -78,8 +78,11 @@ def upload_file_to_github(file_path):
     """上傳檔案至 GitHub"""
     file_sha = get_file_sha()  # 查詢 GitHub Repo 中檔案的 SHA 值
     file_content = encode_file_to_base64(file_path)
-    
-    commit_message = "Update cs2_pro_settings.csv"
+
+    # 取得今天的日期並格式化為 yyyy/mm/dd
+    today_date = datetime.now().strftime("%Y/%m/%d").replace("/", "_")  # 轉換為 yyyy_mm_dd 格式
+    # 組合檔案名稱
+    commit_message = f"cs2_pro_settings_{today_date}.csv"
     
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
     
