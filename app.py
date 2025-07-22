@@ -2,15 +2,13 @@ import os
 import json
 import csv
 import requests
-import subprocess
-from bs4 import BeautifulSoup
+from base64 import b64encode
 
 # 讀取環境變數
-TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
-TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 GITHUB_USERNAME = os.environ['GITHUB_USERNAME']
-GITHUB_REPO = os.environ['GITHUB_REPO']  # 格式 username/repo，例如 yourname/yourrepo
+GITHUB_REPO = os.environ['GITHUB_REPO']  # 格式: username/repo
+GITHUB_FILE_PATH = 'cs2_pro_settings.csv'  # repo 裡的路徑與檔名
 
 def fetch_full_cs2_table():
     url = 'https://prosettings.net/lists/cs2/'
@@ -42,36 +40,6 @@ def fetch_full_cs2_table():
             print("⚠️ 欄位數不一致，跳過一筆")
     return headers, data
 
-def format_table_to_text(headers, data, limit=20):
-    filtered_data = [
-        row for row in data
-        if any("zowie" in str(value).lower() for value in row.values())
-    ]
-    count = len(filtered_data)
-    msg = f"📊 含有 'ZOWIE' 的設定資料：共 {count} 筆，以下列出前 {limit} 筆\n\n"
-    for i, row in enumerate(filtered_data[:limit]):
-        msg += f"{i+1}. {row.get('Player', 'N/A')} - {row.get('Team', '')}\n"
-        msg += f"   Mouse: {row.get('Mouse', '')} | DPI: {row.get('DPI', '')} | Sensitivity: {row.get('Sens', '')}\n"
-        msg += f"   Monitor: {row.get('Monitor', '')}, Mousepad: {row.get('Mousepad', '')}\n"
-        msg += "—" * 30 + "\n"
-    return msg
-
-def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
-        response = requests.post(url, data=payload)
-        if response.status_code == 200:
-            print("✅ 成功發送 Telegram 訊息")
-        else:
-            print("❌ 發送失敗，狀態碼：", response.status_code)
-    except Exception as e:
-        print("❌ 發送錯誤：", e)
-
 def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
     try:
         with open(filename, 'w', encoding='utf-8', newline='') as f:
@@ -82,41 +50,66 @@ def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
     except Exception as e:
         print(f"❌ 存檔失敗：{e}")
 
-def setup_git():
-    subprocess.run(['git', 'config', '--global', 'user.email', 'ma0815rk54@gmail.com'], check=True)
-    subprocess.run(['git', 'config', '--global', 'user.name', GITHUB_USERNAME], check=True)
+def encode_file_to_base64(file_path):
+    with open(file_path, "rb") as f:
+        file_content = f.read()
+    return b64encode(file_content).decode('utf-8')
 
-def git_commit_and_push(file_path, commit_message="自動更新 csv 備份"):
-    try:
-        setup_git()
-        subprocess.run(['git', 'add', file_path], check=True)
-        subprocess.run(['git', 'commit', '-m', commit_message], check=True)
+def get_file_sha():
+    """查詢 GitHub Repo 中目標檔案的 SHA 值，若檔案存在，便能進行更新操作"""
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+    headers = {
+        'Authorization': f'Bearer {GITHUB_TOKEN}'
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()['sha']  # 取得檔案的 SHA 值
+    elif response.status_code == 404:
+        return None  # 檔案不存在
+    else:
+        print(f"❌ 查詢檔案 SHA 錯誤: {response.status_code}")
+        return None
 
-        remote_url = f"https://{GITHUB_TOKEN}@github.com/{GITHUB_REPO}.git"
-
-        # 移除 origin，如果不存在不會報錯
-        subprocess.run(['git', 'remote', 'remove', 'origin'], check=False)
-        subprocess.run(['git', 'remote', 'add', 'origin', remote_url], check=True)
-
-        subprocess.run(['git', 'push', '-u', 'origin', 'main'], check=True)  # 如果是 master 分支，把 main 換成 master
-
-        print("✅ 成功 commit 並推送到 GitHub")
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Git 操作失敗：{e}")
+def upload_file_to_github(file_path):
+    """上傳檔案至 GitHub"""
+    file_sha = get_file_sha()
+    file_content = encode_file_to_base64(file_path)
+    
+    commit_message = "Update cs2_pro_settings.csv"
+    
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+    
+    data = {
+        "message": commit_message,
+        "content": file_content,
+        "branch": "main"  # 可以改成自己的分支名稱
+    }
+    
+    # 如果檔案已存在，更新檔案
+    if file_sha:
+        data["sha"] = file_sha  # 加入 SHA 值，告訴 GitHub 進行更新
+    
+    headers = {
+        'Authorization': f'Bearer {GITHUB_TOKEN}'
+    }
+    
+    response = requests.put(url, json=data, headers=headers)
+    
+    if response.status_code == 201:
+        print("✅ 檔案上傳成功")
+    else:
+        print(f"❌ 上傳失敗: {response.status_code}")
+        print(response.json())
 
 if __name__ == "__main__":
+    # 抓取並處理資料
     result = fetch_full_cs2_table()
     if isinstance(result, str):
         print(result)
-        send_telegram_message(result)
     else:
         headers, data = result
+        # 存成 CSV 檔
+        save_to_csv(headers, data)
 
-        msg = format_table_to_text(headers, data, limit=20)
-        print(msg)
-        send_telegram_message(msg)
-
-        filename = "cs2_pro_settings.csv"
-        save_to_csv(headers, data, filename)
-
-        git_commit_and_push(filename)
+        # 上傳至 GitHub Repo
+        upload_file_to_github("cs2_pro_settings.csv")
