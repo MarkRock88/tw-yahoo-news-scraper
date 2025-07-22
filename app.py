@@ -83,7 +83,7 @@ def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
         print(f"❌ 存檔失敗：{e}")
 
 def setup_git():
-    subprocess.run(['git', 'config', '--global', 'user.email', 'your_email@example.com'], check=True)
+    subprocess.run(['git', 'config', '--global', 'user.email', 'ma0815rk54@gmail.com'], check=True)
     subprocess.run(['git', 'config', '--global', 'user.name', GITHUB_USERNAME], check=True)
 
 def git_commit_and_push(file_path, commit_message="自動更新 csv 備份"):
