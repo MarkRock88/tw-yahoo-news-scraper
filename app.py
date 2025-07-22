@@ -44,7 +44,14 @@ def fetch_full_cs2_table():
             print("⚠️ 欄位數不一致，跳過一筆")
     return headers, data
 
-def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
+
+# 取得今天的日期並格式化為 yyyy/mm/dd
+today_date = datetime.now().strftime("%Y/%m/%d").replace("/", "_")  # 轉換為 yyyy_mm_dd 格式
+
+def save_to_csv(headers, data, filename=None):
+    if filename is None:
+        # 如果沒有提供 filename 參數，則默認使用包含日期的檔名
+        filename = f"cs2_pro_settings_{today_date}.csv"
     try:
         with open(filename, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=headers)
