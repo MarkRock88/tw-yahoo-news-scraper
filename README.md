@@ -1,1 +1,1 @@
-# tw-yahoo-news-scraper
+# tw-prosetting-CS2-scraper
