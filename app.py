@@ -41,6 +41,38 @@ def fetch_full_cs2_table():
             print("⚠️ 欄位數不一致，跳過一筆")
     return headers, data
 
+def format_table_to_text(headers, data, limit=20):
+    filtered_data = [
+        row for row in data
+        if any("zowie" in str(value).lower() for value in row.values())
+    ]
+    count = len(filtered_data)
+    msg = f"📊 含有 'ZOWIE' 的設定資料：共 {count} 筆，以下列出前 {limit} 筆\n\n"
+    for i, row in enumerate(filtered_data[:limit]):
+        msg += f"{i+1}. {row.get('Player', 'N/A')} - {row.get('Team', '')}\n"
+        msg += f"   Mouse: {row.get('Mouse', '')} | DPI: {row.get('DPI', '')} | Sensitivity: {row.get('Sens', '')}\n"
+        msg += f"   Monitor: {row.get('Monitor', '')}, Mousepad: {row.get('Mousepad', '')}\n"
+        msg += "—" * 30 + "\n"
+    return msg
+
+
+def send_telegram_message(message):
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        response = requests.post(url, data=payload)
+        if response.status_code == 200:
+            print("✅ 成功發送 Telegram 訊息")
+        else:
+            print("❌ 發送失敗，狀態碼：", response.status_code)
+    except Exception as e:
+        print("❌ 發送錯誤：", e)
+
+
 def save_to_csv(headers, data, filename="cs2_pro_settings.csv"):
     try:
         with open(filename, 'w', encoding='utf-8', newline='') as f:
@@ -109,6 +141,12 @@ if __name__ == "__main__":
         print(result)
     else:
         headers, data = result
+        
+        # 傳送前 ZOWIE 的前 20 筆資料到 Telegram
+        msg = format_table_to_text(headers, data, limit=20)
+        print(msg)
+        send_telegram_message(msg)
+        
         # 存成 CSV 檔
         save_to_csv(headers, data)
 
