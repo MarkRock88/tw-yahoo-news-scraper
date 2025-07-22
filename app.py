@@ -2,6 +2,7 @@ import os
 import json
 import csv
 import requests
+from bs4 import BeautifulSoup
 from base64 import b64encode
 
 # 讀取環境變數
