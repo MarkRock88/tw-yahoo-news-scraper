@@ -17,8 +17,8 @@ def fetch_titles():
     return msg
 
 def send_telegram_message(message):
-    token = os.getenv("8129498978:AAGWiak-ThWYyb14HiBbBr1mLjCM8QbjUHo")
-    chat_id = os.getenv("1734667191")
+    token = "8129498978:AAGWiak-ThWYyb14HiBbBr1mLjCM8QbjUHo"  # 這是你的 bot token
+    chat_id = "1734667191"  # 這是你的 chat ID
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {"chat_id": chat_id, "text": message}
     response = requests.post(url, data=payload)
@@ -28,4 +28,3 @@ if __name__ == "__main__":
     news = fetch_titles()
     print(news)
     send_telegram_message(news)
-
