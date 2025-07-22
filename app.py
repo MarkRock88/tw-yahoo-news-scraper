@@ -99,11 +99,17 @@ def upload_file_to_github(file_path):
     
     response = requests.put(url, json=data, headers=headers)
     
-    if response.status_code == 201:
-        print("✅ 檔案上傳成功")
+    if response.status_code == 201 or response.status_code == 200:
+        response_data = response.json()
+        commit_sha = response_data.get('commit', {}).get('sha')
+        if commit_sha:
+            print(f"✅ 檔案已成功更新，新的 commit SHA: {commit_sha}")
+        else:
+            print(f"✅ 檔案已成功上傳，但未返回 commit 詳細資料。")
     else:
         print(f"❌ 上傳失敗，狀態碼：{response.status_code}")
         print(response.json())
+
 
 
 # A代碼部分
