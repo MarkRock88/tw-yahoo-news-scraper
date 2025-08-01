@@ -4,15 +4,19 @@ import csv
 import requests
 from bs4 import BeautifulSoup
 from base64 import b64encode
-from datetime import datetime  # 引入 datetime 模組
+from datetime import datetime
 
 # 讀取環境變數
 GITHUB_TOKEN = os.environ['GITHUB_TOKEN']
 GITHUB_USERNAME = os.environ['GITHUB_USERNAME']
 GITHUB_REPO = os.environ['GITHUB_REPO']  # 格式: username/repo
-GITHUB_FILE_PATH = 'cs2_pro_settings.csv'  # repo 裡的路徑與檔名
 TELEGRAM_BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
 TELEGRAM_CHAT_ID = os.environ['TELEGRAM_CHAT_ID']
+
+# 今天日期（格式化）
+today_date = datetime.now().strftime("%Y_%m_%d")
+LOCAL_FILENAME = f"cs2_pro_settings_{today_date}.csv"
+GITHUB_FILE_PATH = f"cs2_pro_settings/{LOCAL_FILENAME}"
 
 def fetch_full_cs2_table():
     url = 'https://prosettings.net/lists/cs2/'
@@ -44,14 +48,7 @@ def fetch_full_cs2_table():
             print("⚠️ 欄位數不一致，跳過一筆")
     return headers, data
 
-
-# 取得今天的日期並格式化為 yyyy/mm/dd
-today_date = datetime.now().strftime("%Y/%m/%d").replace("/", "_")  # 轉換為 yyyy_mm_dd 格式
-
-def save_to_csv(headers, data, filename=None):
-    if filename is None:
-        # 如果沒有提供 filename 參數，則默認使用包含日期的檔名
-        filename = f"cs2_pro_settings_{today_date}.csv"
+def save_to_csv(headers, data, filename):
     try:
         with open(filename, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=headers)
@@ -66,62 +63,31 @@ def encode_file_to_base64(file_path):
         file_content = f.read()
     return b64encode(file_content).decode('utf-8')
 
-def get_file_sha():
-    """查詢 GitHub Repo 中目標檔案的 SHA 值，若檔案存在，便能進行更新操作"""
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+def upload_file_to_github(local_file_path, github_path):
+    """上傳檔案至 GitHub（不覆蓋，依照日期命名）"""
+    file_content = encode_file_to_base64(local_file_path)
+
+    commit_message = f"Add {os.path.basename(github_path)}"
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{github_path}"
+
     headers = {
         'Authorization': f'Bearer {GITHUB_TOKEN}'
     }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()['sha']  # 取得檔案的 SHA 值
-    elif response.status_code == 404:
-        return None  # 檔案不存在
-    else:
-        print(f"❌ 查詢檔案 SHA 錯誤: {response.status_code}")
-        return None
 
-def upload_file_to_github(file_path):
-    """上傳檔案至 GitHub"""
-    file_sha = get_file_sha()  # 查詢 GitHub Repo 中檔案的 SHA 值
-    file_content = encode_file_to_base64(file_path)
-
-    # 取得今天的日期並格式化為 yyyy/mm/dd
-    today_date = datetime.now().strftime("%Y/%m/%d").replace("/", "_")  # 轉換為 yyyy_mm_dd 格式
-    # 組合檔案名稱
-    commit_message = f"cs2_pro_settings_{today_date}.csv"
-    
-    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
-    
-    # 檢查檔案是否存在
     data = {
         "message": commit_message,
         "content": file_content,
-        "branch": "main"  # 可以改成自己的分支名稱
+        "branch": "main"
     }
-    
-    if file_sha:
-        # 檔案已經存在，傳遞 SHA 值來更新
-        data["sha"] = file_sha
-    
-    headers = {
-        'Authorization': f'Bearer {GITHUB_TOKEN}'
-    }
-    
+
     response = requests.put(url, json=data, headers=headers)
-    
-    if response.status_code == 201 or response.status_code == 200:
-        response_data = response.json()
-        commit_sha = response_data.get('commit', {}).get('sha')
-        if commit_sha:
-            print(f"✅ 檔案已成功更新，新的 commit SHA: {commit_sha}")
-        else:
-            print(f"✅ 檔案已成功上傳，但未返回 commit 詳細資料。")
+
+    if response.status_code in [200, 201]:
+        print(f"✅ 檔案已成功上傳至 GitHub: {github_path}")
     else:
         print(f"❌ 上傳失敗，狀態碼：{response.status_code}")
         print(response.json())
 
-# A代碼部分
 def format_table_to_text(headers, data, limit=20):
     filtered_data = [
         row for row in data
@@ -153,24 +119,19 @@ def send_telegram_message(message):
         print("❌ 發送錯誤：", e)
 
 if __name__ == "__main__":
-    # 取得今天的日期並格式化為 yyyy/mm/dd
-    today_date = datetime.now().strftime("%Y/%m/%d").replace("/", "_")  # 轉換為 yyyy_mm_dd 格式
-    # 組合檔案名稱
-    filename = f"cs2_pro_settings_{today_date}.csv"
-    
-    # 抓取並處理資料
     result = fetch_full_cs2_table()
     if isinstance(result, str):
         print(result)
     else:
         headers, data = result
-        # 存成 CSV 檔，使用包含日期的檔案名稱
-        save_to_csv(headers, data, filename=filename)
 
-        # 上傳至 GitHub Repo
-        upload_file_to_github(filename)
+        # 儲存為本地 CSV
+        save_to_csv(headers, data, filename=LOCAL_FILENAME)
 
-        # 傳送前 ZOWIE 的前 20 筆資料到 Telegram
+        # 上傳到 GitHub，使用包含日期的路徑
+        upload_file_to_github(LOCAL_FILENAME, GITHUB_FILE_PATH)
+
+        # 傳送 ZOWIE 訊息
         msg = format_table_to_text(headers, data, limit=20)
         print(msg)
         send_telegram_message(msg)
